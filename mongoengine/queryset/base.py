@@ -38,6 +38,8 @@ from mongoengine.queryset.visitor import Q, QNode
 
 __all__ = ("BaseQuerySet", "DO_NOTHING", "NULLIFY", "CASCADE", "DENY", "PULL")
 
+from mongoengine.transaction import TransactionManager
+
 # Delete rules
 DO_NOTHING = 0
 NULLIFY = 1
@@ -514,8 +516,10 @@ class BaseQuerySet:
                     write_concern=write_concern, **{"pull_all__%s" % field_name: self}
                 )
 
+        session = TransactionManager.get_context().get_current()
+
         with set_write_concern(queryset._collection, write_concern) as collection:
-            result = collection.delete_many(queryset._query)
+            result = collection.delete_many(queryset._query, session=session)
 
             # If we're using an unack'd write concern, we don't really know how
             # many items have been deleted at this point, hence we only return

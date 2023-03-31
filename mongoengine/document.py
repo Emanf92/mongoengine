@@ -45,6 +45,8 @@ __all__ = (
     "MapReduceDocument",
 )
 
+from mongoengine.transaction import TransactionManager
+
 
 def includes_cls(fields):
     """Helper function used for ensuring and comparing indexes."""
@@ -477,9 +479,10 @@ class Document(BaseDocument, metaclass=TopLevelDocumentMetaclass):
         Helper method, should only be used inside save().
         """
         collection = self._get_collection()
+        session = TransactionManager.get_context().get_current()
         with set_write_concern(collection, write_concern) as wc_collection:
             if force_insert:
-                return wc_collection.insert_one(doc).inserted_id
+                return wc_collection.insert_one(doc, session=session).inserted_id
             # insert_one will provoke UniqueError alongside save does not
             # therefore, it need to catch and call replace_one.
             if "_id" in doc:
@@ -489,7 +492,7 @@ class Document(BaseDocument, metaclass=TopLevelDocumentMetaclass):
                 if raw_object:
                     return doc["_id"]
 
-            object_id = wc_collection.insert_one(doc).inserted_id
+            object_id = wc_collection.insert_one(doc, session=session).inserted_id
 
         return object_id
 
@@ -531,6 +534,7 @@ class Document(BaseDocument, metaclass=TopLevelDocumentMetaclass):
         Helper method, should only be used inside save().
         """
         collection = self._get_collection()
+        session = TransactionManager.get_context().get_current()
         object_id = doc["_id"]
         created = False
 
@@ -547,7 +551,7 @@ class Document(BaseDocument, metaclass=TopLevelDocumentMetaclass):
             upsert = save_condition is None
             with set_write_concern(collection, write_concern) as wc_collection:
                 last_error = wc_collection.update_one(
-                    select_dict, update_doc, upsert=upsert
+                    select_dict, update_doc, upsert=upsert, session=session
                 ).raw_result
             if not upsert and last_error["n"] == 0:
                 raise SaveConditionError(
@@ -636,8 +640,9 @@ class Document(BaseDocument, metaclass=TopLevelDocumentMetaclass):
             else:
                 raise OperationError("attempt to update a document not yet saved")
 
+        session = TransactionManager.get_context().get_current()
         # Need to add shard key to query, or you get an error
-        return self._qs.filter(**self._object_key).update_one(**kwargs)
+        return self._qs.filter(**self._object_key).update_one(**kwargs, session=session)
 
     def delete(self, signal_kwargs=None, **write_concern):
         """Delete the :class:`~mongoengine.Document` from the database. This

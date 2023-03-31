@@ -1,10 +1,12 @@
 from contextlib import contextmanager
+from time import sleep
 
 from pymongo.read_concern import ReadConcern
 from pymongo.write_concern import WriteConcern
 
 from mongoengine.common import _import_class
 from mongoengine.connection import DEFAULT_CONNECTION_NAME, get_db
+from mongoengine.transaction import TransactionManager
 from mongoengine.pymongo_support import count_documents
 
 __all__ = (
@@ -17,6 +19,7 @@ __all__ = (
     "set_read_write_concern",
 )
 
+ensured_entities = []
 
 class switch_db:
     """switch_db alias context manager.
@@ -265,6 +268,63 @@ class query_counter:
             1  # Account for the query we just issued to gather the information
         )
         return count
+
+
+class transaction:
+    def __init__(self, *models):
+        global ensured_entities
+        self.context = TransactionManager.get_context()
+        self.models = models
+        self.session = self.get_session()
+        self.previous_transaction = None
+        self.create_collections_for_models()
+
+    def create_collections_for_models(self):
+        for model in self.models:
+            if model in ensured_entities:
+                continue
+            # noinspection PyProtectedMember
+            collection = model._get_collection()
+            # noinspection PyProtectedMember
+            db = model._get_db()
+
+            if collection.name not in db.list_collection_names():
+                db.create_collection(collection.name)
+            ensured_entities.append(model)
+
+    def __enter__(self):
+        self.session.start_transaction()
+        self.previous_transaction = self.context.get_current()
+        self.context.push_transaction(self.session)
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.context.push_transaction(self.previous_transaction)
+        if exc_val:
+            self.session.abort_transaction()
+
+        self.commit(5)
+
+        self.session.end_session()
+
+        if exc_val:
+            raise exc_val
+
+    def get_session(self):
+        mongo_client = self.models[0]._get_db().client
+        mongo_client.admin.command("replSetGetStatus")
+        session = mongo_client.start_session()
+        return session
+
+    def commit(self, nattempts: int = 1):
+        nattempts = 1 if nattempts < 1 else nattempts
+        for attempt in range(0, nattempts):
+            try:
+                self.session.commit_transaction()
+                return
+            except Exception:
+                if attempt < nattempts:
+                    if attempt >= 1:
+                        sleep(attempt - 1)
 
 
 @contextmanager
