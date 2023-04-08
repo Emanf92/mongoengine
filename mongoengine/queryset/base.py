@@ -243,7 +243,8 @@ class BaseQuerySet:
         """
         queryset = self.clone()
         if queryset._search_text:
-            raise OperationError("It is not possible to use search_text two times.")
+            raise OperationError("It is not possible to use search_text two times.",
+                                 model=self._document.__name__.lower())
 
         query_kwargs = SON({"$search": text})
         if language:
@@ -271,7 +272,7 @@ class BaseQuerySet:
             result = next(queryset)
         except StopIteration:
             msg = "%s matching query does not exist." % queryset._document._class_name
-            raise queryset._document.DoesNotExist(msg)
+            raise queryset._document.DoesNotExist(msg, model=queryset._document.__name__.lower())
 
         try:
             # Check if there is another match
@@ -281,7 +282,8 @@ class BaseQuerySet:
 
         # If we were able to retrieve the 2nd doc, raise the MultipleObjectsReturned exception.
         raise queryset._document.MultipleObjectsReturned(
-            "2 or more items returned, instead of 1"
+            "2 or more items returned, instead of 1",
+            model=queryset._document.__name__.lower()
         )
 
     def create(self, **kwargs):
@@ -337,10 +339,10 @@ class BaseQuerySet:
                 msg = "Some documents inserted aren't instances of %s" % str(
                     self._document
                 )
-                raise OperationError(msg)
+                raise OperationError(msg, model=self._document.__name__.lower())
             if doc.pk and not doc._created:
                 msg = "Some documents have ObjectIds, use doc.update() instead"
-                raise OperationError(msg)
+                raise OperationError(msg, model=self._document.__name__.lower())
 
         signal_kwargs = signal_kwargs or {}
         signals.pre_bulk_insert.send(self._document, documents=docs, **signal_kwargs)
@@ -362,20 +364,20 @@ class BaseQuerySet:
             )
         except pymongo.errors.DuplicateKeyError as err:
             message = "Could not save document (%s)"
-            raise NotUniqueError(message % err)
+            raise NotUniqueError(message % err, model=self._document.__name__.lower())
         except pymongo.errors.BulkWriteError as err:
             # inserting documents that already have an _id field will
             # give huge performance debt or raise
             message = "Bulk write error: (%s)"
-            raise BulkWriteError(message % err.details)
+            raise BulkWriteError(message % err.details, model=self._document.__name__.lower())
         except pymongo.errors.OperationFailure as err:
             message = "Could not save document (%s)"
             if re.match("^E1100[01] duplicate key", str(err)):
                 # E11000 - duplicate key error index
                 # E11001 - duplicate key on update
                 message = "Tried to save duplicate unique keys (%s)"
-                raise NotUniqueError(message % err)
-            raise OperationError(message % err)
+                raise NotUniqueError(message % err, model=self._document.__name__.lower())
+            raise OperationError(message % err, model=self._document.__name__.lower())
 
         # Apply inserted_ids to documents
         for doc, doc_id in zip(docs, ids):
@@ -487,7 +489,8 @@ class BaseQuerySet:
                 if refs.limit(1).count() > 0:
                     raise OperationError(
                         "Could not delete document (%s.%s refers to it)"
-                        % (document_cls.__name__, field_name)
+                        % (document_cls.__name__, field_name),
+                        model=self._document.__name__.lower()
                     )
 
         # Check all the other rules
@@ -554,7 +557,7 @@ class BaseQuerySet:
         :returns the number of updated documents (unless ``full_result`` is True)
         """
         if not update and not upsert:
-            raise OperationError("No update parameters, would remove data")
+            raise OperationError("No update parameters, would remove data", model=self._document.__name__.lower())
 
         if write_concern is None:
             write_concern = {}
@@ -590,12 +593,12 @@ class BaseQuerySet:
             elif result.raw_result:
                 return result.raw_result["n"]
         except pymongo.errors.DuplicateKeyError as err:
-            raise NotUniqueError("Update failed (%s)" % err)
+            raise NotUniqueError("Update failed (%s)" % err, model=self._document.__name__.lower())
         except pymongo.errors.OperationFailure as err:
             if str(err) == "multi not coded yet":
                 message = "update() method requires MongoDB 1.1.3+"
                 raise OperationError(message)
-            raise OperationError("Update failed (%s)" % err)
+            raise OperationError("Update failed (%s)" % err, model=self._document.__name__.lower())
 
     def upsert_one(self, write_concern=None, read_concern=None, **update):
         """Overwrite or add the first document matched by the query.
@@ -677,10 +680,11 @@ class BaseQuerySet:
         """
 
         if remove and new:
-            raise OperationError("Conflicting parameters: remove and new")
+            raise OperationError("Conflicting parameters: remove and new", model=self._document.__name__.lower())
 
         if not update and not upsert and not remove:
-            raise OperationError("No update parameters, must either update or remove")
+            raise OperationError("No update parameters, must either update or remove",
+                                 model=self._document.__name__.lower())
 
         if self._none or self._empty:
             return None
@@ -713,9 +717,9 @@ class BaseQuerySet:
                     **self._cursor_args,
                 )
         except pymongo.errors.DuplicateKeyError as err:
-            raise NotUniqueError("Update failed (%s)" % err)
+            raise NotUniqueError("Update failed (%s)" % err, model=self._document.__name__.lower())
         except pymongo.errors.OperationFailure as err:
-            raise OperationError("Update failed (%s)" % err)
+            raise OperationError("Update failed (%s)" % err, model=self._document.__name__.lower())
 
         if full_response:
             if result["value"] is not None:
@@ -736,7 +740,7 @@ class BaseQuerySet:
         queryset = self.clone()
         if queryset._query_obj:
             msg = "Cannot use a filter whilst using `with_id`"
-            raise InvalidQueryError(msg)
+            raise InvalidQueryError(msg, model=self._document.__name__.lower())
         return queryset.filter(pk=object_id).first()
 
     def in_bulk(self, object_ids):
@@ -805,7 +809,8 @@ class BaseQuerySet:
         """
         if not isinstance(new_qs, BaseQuerySet):
             raise OperationError(
-                "%s is not a subclass of BaseQuerySet" % new_qs.__name__
+                "%s is not a subclass of BaseQuerySet" % new_qs.__name__,
+                model=self._document.__name__.lower()
             )
 
         copy_props = (
@@ -1429,7 +1434,7 @@ class BaseQuerySet:
                         break
 
                 else:
-                    raise OperationError("actionData not specified for output")
+                    raise OperationError("actionData not specified for output", model=self._document.__name__.lower())
 
                 db_alias = output.get("db_alias")
                 remaing_args = ["db", "sharded", "nonAtomic"]

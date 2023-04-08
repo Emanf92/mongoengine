@@ -304,7 +304,8 @@ class Document(BaseDocument, metaclass=TopLevelDocumentMetaclass):
             query = {}
 
         if self.pk is None:
-            raise InvalidDocumentError("The document does not have a primary key.")
+            raise InvalidDocumentError("The document does not have a primary key.",
+                                       model=self.__class__.__name__.lower())
 
         id_field = self._meta["id_field"]
         query = query.copy() if isinstance(query, dict) else query.to_query(self)
@@ -313,7 +314,8 @@ class Document(BaseDocument, metaclass=TopLevelDocumentMetaclass):
             query[id_field] = self.pk
         elif query[id_field] != self.pk:
             raise InvalidQueryError(
-                "Invalid document modify query: it must modify only this document."
+                "Invalid document modify query: it must modify only this document.",
+                model=self.__class__.__name__.lower()
             )
 
         # Need to add shard key to query, or you get an error
@@ -393,7 +395,7 @@ class Document(BaseDocument, metaclass=TopLevelDocumentMetaclass):
         signal_kwargs = signal_kwargs or {}
 
         if self._meta.get("abstract"):
-            raise InvalidDocumentError("Cannot save an abstract document.")
+            raise InvalidDocumentError("Cannot save an abstract document.", model=self.__class__.__name__.lower())
 
         signals.pre_save.send(self.__class__, document=self, **signal_kwargs)
 
@@ -449,15 +451,15 @@ class Document(BaseDocument, metaclass=TopLevelDocumentMetaclass):
 
         except pymongo.errors.DuplicateKeyError as err:
             message = "Tried to save duplicate unique keys (%s)"
-            raise NotUniqueError(message % err)
+            raise NotUniqueError(message % err, model=self.__class__.__name__.lower())
         except pymongo.errors.OperationFailure as err:
             message = "Could not save document (%s)"
             if re.match("^E1100[01] duplicate key", str(err)):
                 # E11000 - duplicate key error index
                 # E11001 - duplicate key on update
                 message = "Tried to save duplicate unique keys (%s)"
-                raise NotUniqueError(message % err)
-            raise OperationError(message % err)
+                raise NotUniqueError(message % err, model=self.__class__.__name__.lower())
+            raise OperationError(message % err, model=self.__class__.__name__.lower())
 
         # Make sure we store the PK on this document now that it's saved
         id_field = self._meta["id_field"]
@@ -555,7 +557,8 @@ class Document(BaseDocument, metaclass=TopLevelDocumentMetaclass):
                 ).raw_result
             if not upsert and last_error["n"] == 0:
                 raise SaveConditionError(
-                    "Race condition preventing document update detected"
+                    "Race condition preventing document update detected",
+                    model=self.__class__.__name__.lower()
                 )
             if last_error is not None:
                 updated_existing = last_error.get("updatedExisting")
@@ -638,7 +641,8 @@ class Document(BaseDocument, metaclass=TopLevelDocumentMetaclass):
                     del query["_cls"]
                 return self._qs.filter(**query).update_one(**kwargs)
             else:
-                raise OperationError("attempt to update a document not yet saved")
+                raise OperationError("attempt to update a document not yet saved",
+                                     model=self.__class__.__name__.lower())
 
         session = TransactionManager.get_context().get_current()
         # Need to add shard key to query, or you get an error
@@ -671,7 +675,7 @@ class Document(BaseDocument, metaclass=TopLevelDocumentMetaclass):
             )
         except pymongo.errors.OperationFailure as err:
             message = "Could not delete document (%s)" % err.args
-            raise OperationError(message)
+            raise OperationError(message, model=self.__class__.__name__.lower())
         signals.post_delete.send(self.__class__, document=self, **signal_kwargs)
 
     def switch_db(self, db_alias, keep_created=True):
@@ -755,7 +759,7 @@ class Document(BaseDocument, metaclass=TopLevelDocumentMetaclass):
             max_depth = kwargs["max_depth"]
 
         if self.pk is None:
-            raise self.DoesNotExist("Document does not exist")
+            raise self.DoesNotExist("Document does not exist", model=self.__class__.__name__.lower())
 
         obj = (
             self._qs.read_preference(ReadPreference.PRIMARY)
@@ -768,7 +772,7 @@ class Document(BaseDocument, metaclass=TopLevelDocumentMetaclass):
         if obj:
             obj = obj[0]
         else:
-            raise self.DoesNotExist("Document does not exist")
+            raise self.DoesNotExist("Document does not exist", model=self.__class__.__name__.lower())
         for field in obj._data:
             if not fields or field in fields:
                 try:
@@ -815,7 +819,7 @@ class Document(BaseDocument, metaclass=TopLevelDocumentMetaclass):
         `__raw__` queries."""
         if self.pk is None:
             msg = "Only saved documents can have a valid dbref"
-            raise OperationError(msg)
+            raise OperationError(msg, model=self.__class__.__name__.lower())
         return DBRef(self.__class__._get_collection_name(), self.pk)
 
     @classmethod
@@ -851,7 +855,8 @@ class Document(BaseDocument, metaclass=TopLevelDocumentMetaclass):
         coll_name = cls._get_collection_name()
         if not coll_name:
             raise OperationError(
-                "Document %s has no collection defined (is it abstract ?)" % cls
+                "Document %s has no collection defined (is it abstract ?)" % cls,
+                model=cls.__name__.lower()
             )
         cls._collection = None
         db = cls._get_db()

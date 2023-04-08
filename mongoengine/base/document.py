@@ -96,7 +96,7 @@ class BaseDocument:
             )
             if _undefined_fields:
                 msg = f'The fields "{_undefined_fields}" do not exist on the document "{self._class_name}"'
-                raise FieldDoesNotExist(msg)
+                raise FieldDoesNotExist(msg, model=self.__class__.__name__.lower())
 
         if self.STRICT and not self._dynamic:
             self._data = StrictDict.create(allowed_keys=self._fields_ordered)()
@@ -188,7 +188,7 @@ class BaseDocument:
             and self._data.get(name) != value
         ):
             msg = "Shard Keys are immutable. Tried to update %s" % name
-            raise OperationError(msg)
+            raise OperationError(msg, model=self.__class__.__name__.lower())
 
         try:
             self__initialised = self._initialised
@@ -322,7 +322,8 @@ class BaseDocument:
 
         if "_text_score" not in self._data:
             raise InvalidDocumentError(
-                "This document is not originally built from a text query"
+                "This document is not originally built from a text query",
+                model=self.__class__.__name__.lower()
             )
 
         return self._data["_text_score"]
@@ -825,7 +826,7 @@ class BaseDocument:
                 cls._class_name,
                 errors,
             )
-            raise InvalidDocumentError(msg)
+            raise InvalidDocumentError(msg, model=cls.__name__.lower())
 
         # In STRICT documents, remove any keys that aren't in cls._fields
         if cls.STRICT:

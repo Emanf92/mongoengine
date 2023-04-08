@@ -151,7 +151,7 @@ class QuerySet(BaseQuerySet):
     def no_cache(self):
         """Convert to a non-caching queryset"""
         if self._result_cache is not None:
-            raise OperationError("QuerySet already cached")
+            raise OperationError("QuerySet already cached", model=self._document.__name__.lower())
 
         return self._clone_into(QuerySetNoCache(self._document, self._collection))
 

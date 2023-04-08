@@ -94,7 +94,7 @@ def query(_doc_cls=None, **kwargs):
             try:
                 fields = _doc_cls._lookup_field(parts)
             except Exception as e:
-                raise InvalidQueryError(e)
+                raise InvalidQueryError(e, model=_doc_cls.__name__.lower())
             parts = []
 
             CachedReferenceField = _import_class("CachedReferenceField")
@@ -288,7 +288,7 @@ def update(_doc_cls=None, **update):
             try:
                 fields = _doc_cls._lookup_field(parts)
             except Exception as e:
-                raise InvalidQueryError(e)
+                raise InvalidQueryError(e, model=_doc_cls.__name__.lower())
             parts = []
 
             cleaned_fields = []
@@ -355,7 +355,8 @@ def update(_doc_cls=None, **update):
             # Otherwise it uses nested dict syntax
             if op == "pullAll":
                 raise InvalidQueryError(
-                    "pullAll operations only support a single field depth"
+                    "pullAll operations only support a single field depth",
+                    model=_doc_cls.__name__.lower()
                 )
 
             # Look for the last list field and use dot notation until there

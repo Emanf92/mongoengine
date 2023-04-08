@@ -44,7 +44,8 @@ def get_document(name):
             Importing the document class automatically registers it, has it
             been imported?
         """.strip()
-            % name
+            % name,
+            model=name.lower()
         )
     return doc
 

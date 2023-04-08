@@ -236,7 +236,8 @@ class BaseField:
                         raise DeprecatedError(
                             "validation argument for `%s` must not return anything, "
                             "it should raise a ValidationError if validation fails"
-                            % self.name
+                            % self.name,
+                            model=self.owner_document.__name__.lower()
                         )
                 except ValidationError as ex:
                     self.error(str(ex))

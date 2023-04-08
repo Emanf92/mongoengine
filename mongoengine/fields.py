@@ -778,7 +778,8 @@ class EmbeddedDocumentField(BaseField):
             except ValueError:
                 raise InvalidQueryError(
                     "Querying the embedded document '%s' failed, due to an invalid query value"
-                    % (self.document_type._class_name,)
+                    % (self.document_type._class_name,),
+                    model=self.document_type.__name__.lower()
                 )
         super().prepare_query_value(op, value)
         return self.to_mongo(value)
@@ -1175,7 +1176,7 @@ class ReferenceField(BaseField):
     def _lazy_load_ref(ref_cls, dbref):
         dereferenced_son = ref_cls._get_db().dereference(dbref)
         if dereferenced_son is None:
-            raise DoesNotExist(f"Trying to dereference unknown document {dbref}")
+            raise DoesNotExist(f"Trying to dereference unknown document {dbref}", model=ref_cls.__name__.lower())
 
         return ref_cls._from_son(dereferenced_son)
 
@@ -1339,7 +1340,7 @@ class CachedReferenceField(BaseField):
     def _lazy_load_ref(ref_cls, dbref):
         dereferenced_son = ref_cls._get_db().dereference(dbref)
         if dereferenced_son is None:
-            raise DoesNotExist(f"Trying to dereference unknown document {dbref}")
+            raise DoesNotExist(f"Trying to dereference unknown document {dbref}", model=ref_cls.__name__.lower())
 
         return ref_cls._from_son(dereferenced_son)
 
@@ -1483,7 +1484,7 @@ class GenericReferenceField(BaseField):
     def _lazy_load_ref(ref_cls, dbref):
         dereferenced_son = ref_cls._get_db().dereference(dbref)
         if dereferenced_son is None:
-            raise DoesNotExist(f"Trying to dereference unknown document {dbref}")
+            raise DoesNotExist(f"Trying to dereference unknown document {dbref}", model=ref_cls.__name__.lower())
 
         return ref_cls._from_son(dereferenced_son)
 

@@ -441,7 +441,8 @@ class LazyReference(DBRef):
         if not self._cached_doc or force:
             self._cached_doc = self.document_type.objects.get(pk=self.pk)
             if not self._cached_doc:
-                raise DoesNotExist("Trying to dereference unknown document %s" % (self))
+                raise DoesNotExist("Trying to dereference unknown document %s" % (self),
+                                   model=self.document_type.__name__.lower())
         return self._cached_doc
 
     @property

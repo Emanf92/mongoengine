@@ -1,6 +1,7 @@
 from collections import defaultdict
 
 __all__ = (
+    "BaseMongoEngineException",
     "NotRegistered",
     "InvalidDocumentError",
     "LookUpError",
@@ -17,7 +18,20 @@ __all__ = (
 )
 
 
-class MongoEngineException(Exception):
+class BaseMongoEngineException(Exception):
+    def __init__(self, *args, model=None, **kwargs):
+        super(BaseMongoEngineException, self).__init__(*args)
+        self.model = model
+
+    @property
+    def locale_code(self):
+        return "db.{}.{}".format(
+            self.model if self.model is not None else "_generic",
+            self.__class__.__name__.lower()
+        )
+
+
+class MongoEngineException(BaseMongoEngineException):
     pass
 
 
@@ -72,7 +86,7 @@ class FieldDoesNotExist(MongoEngineException):
     """
 
 
-class ValidationError(AssertionError):
+class ValidationError(BaseMongoEngineException, AssertionError):
     """Validation exception.
 
     May represent an error validating a field or a
@@ -87,8 +101,8 @@ class ValidationError(AssertionError):
     field_name = None
     _message = None
 
-    def __init__(self, message="", **kwargs):
-        super().__init__(message)
+    def __init__(self, message="", *args, model=None, **kwargs):
+        super().__init__(message, *args, model=model)
         self.errors = kwargs.get("errors", {})
         self.field_name = kwargs.get("field_name")
         self.message = message
