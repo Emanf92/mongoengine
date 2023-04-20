@@ -12,6 +12,7 @@ from mongoengine.pymongo_support import count_documents
 __all__ = (
     "switch_db",
     "switch_collection",
+    "transaction",
     "no_dereference",
     "no_sub_classes",
     "query_counter",
